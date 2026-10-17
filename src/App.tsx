@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import { meals, type Meal } from "./meals";
 
 type Screen = "home" | "summary" | "preferences" | "reveal" | "result" | "group" | "groupResult" | "order";
 type IconName = "arrow" | "box" | "clock" | "home" | "food" | "orders" | "pay" | "pin" | "search" | "shield" | "sparkle" | "users" | "wallet";
 type Participant = { id: number; name: string; allergies: string[]; dietary: string[]; budget: number };
-type Meal = {
-  id: number; name: string; restaurant: string; cuisine: string; tags: string[]; dietary: string[];
-  allergens: string[]; price: number; distance: number; eta: string; fee: number; image: string; color: string;
-};
 
 const allergies = ["Peanuts", "Tree nuts", "Shellfish", "Crustaceans", "Fish", "Eggs", "Milk / dairy", "Soy", "Wheat / gluten", "Sesame"];
 const diets = ["No restrictions", "Halal", "Vegetarian", "Vegan", "No pork", "No beef", "Pescatarian"];
 const cuisines = ["Rice", "Noodles", "Western", "Japanese", "Korean", "Chinese", "Indian", "Local favourites", "Healthy", "High protein"];
 const budgetOptions = [{ label: "Under S$10", max: 10 }, { label: "S$10–15", max: 15 }, { label: "S$15–20", max: 20 }];
+const matchesCuisine = (meal: Meal, picked: string[]) => picked.length === 0 || picked.some(c => meal.tags.includes(c));
 const budgetLabel = (budget: number) => budgetOptions.find(o => o.max === budget)?.label ?? `Up to S$${budget}`;
 
 type SavedPrefs = { allergies: string[]; diets: string[]; cuisines: string[]; radius: number; budget: number; other: string };
@@ -22,25 +20,6 @@ function loadPrefs(): SavedPrefs | null {
 function storePrefs(prefs: SavedPrefs) {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage unavailable */ }
 }
-const images = {
-  bowl: "https://images.unsplash.com/photo-1597958792579-bd3517df6399?auto=format&fit=crop&w=900&q=85",
-  bento: "https://images.unsplash.com/photo-1594955332421-2033cfd867b4?auto=format&fit=crop&w=900&q=85",
-  noodles: "https://images.unsplash.com/photo-1713047203705-44dd7d762d0c?auto=format&fit=crop&w=900&q=85",
-  padthai: "https://images.unsplash.com/photo-1746973645769-c11eb0a81025?auto=format&fit=crop&w=900&q=85",
-  veggie: "https://images.unsplash.com/photo-1556040220-4096d522378d?auto=format&fit=crop&w=900&q=85",
-};
-
-const meals: Meal[] = [
-  { id: 1, name: "Grilled Chicken Rice Bowl", restaurant: "Green Bowl Kitchen", cuisine: "Healthy Asian", tags: ["Rice", "Healthy", "High protein"], dietary: ["Halal", "No pork"], allergens: ["Soy", "Sesame"], price: 12.9, distance: 1.8, eta: "20–30 min", fee: 4.5, image: images.bowl, color: "#E7F8ED" },
-  { id: 2, name: "Heritage Nasi Lemak", restaurant: "Nasi Corner", cuisine: "Local favourites", tags: ["Rice", "Local favourites"], dietary: ["Halal", "No pork", "No beef"], allergens: ["Eggs", "Peanuts", "Fish"], price: 10.8, distance: 2.4, eta: "25–35 min", fee: 3.6, image: images.bento, color: "#FFF2DE" },
-  { id: 3, name: "Plant-based Bibimbap", restaurant: "Seoul Bento", cuisine: "Korean", tags: ["Rice", "Korean", "Healthy"], dietary: ["Vegetarian", "Vegan", "No pork", "No beef"], allergens: ["Soy", "Sesame"], price: 14.5, distance: 2.9, eta: "25–35 min", fee: 4.2, image: images.bento, color: "#FBEDE9" },
-  { id: 4, name: "Garden Protein Bowl", restaurant: "Plant Plate", cuisine: "Modern vegetarian", tags: ["Healthy", "High protein", "Western"], dietary: ["Halal", "Vegetarian", "Vegan", "No pork", "No beef", "Pescatarian"], allergens: [], price: 13.9, distance: 1.5, eta: "15–25 min", fee: 3.2, image: images.veggie, color: "#EAF8E7" },
-  { id: 5, name: "Chicken Aglio Olio", restaurant: "Pasta Works", cuisine: "Western", tags: ["Noodles", "Western", "High protein"], dietary: ["No pork", "No beef"], allergens: ["Wheat / gluten", "Milk / dairy"], price: 16.9, distance: 3.6, eta: "30–40 min", fee: 4.8, image: images.noodles, color: "#F9EEE4" },
-  { id: 6, name: "Teriyaki Tofu Don", restaurant: "Japanese Bento Co.", cuisine: "Japanese", tags: ["Rice", "Japanese", "Vegetarian"], dietary: ["Vegetarian", "No pork", "No beef"], allergens: ["Soy"], price: 11.9, distance: 2.1, eta: "20–30 min", fee: 3.9, image: images.bowl, color: "#F1EFE7" },
-  { id: 7, name: "Lime Chicken Rice Noodles", restaurant: "Green Bowl Kitchen", cuisine: "Southeast Asian", tags: ["Noodles", "Healthy", "High protein"], dietary: ["Halal", "No pork", "No beef"], allergens: [], price: 13.5, distance: 1.8, eta: "20–30 min", fee: 4.5, image: images.padthai, color: "#EAF7E8" },
-  { id: 8, name: "Vegetable Brown Rice Bento", restaurant: "Plant Plate", cuisine: "Healthy", tags: ["Rice", "Healthy"], dietary: ["Halal", "Vegetarian", "Vegan", "No pork", "No beef", "Pescatarian"], allergens: ["Soy"], price: 9.9, distance: 1.5, eta: "15–25 min", fee: 3.2, image: images.veggie, color: "#EAF8E7" },
-  { id: 9, name: "Hainanese Chicken Rice", restaurant: "Uncle Lim's Chicken Rice", cuisine: "Local favourites", tags: ["Rice", "Local favourites"], dietary: ["No pork", "No beef"], allergens: ["Soy", "Sesame"], price: 6.5, distance: 1.2, eta: "15–25 min", fee: 2.9, image: images.bowl, color: "#FFF2DE" },
-];
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -200,7 +179,7 @@ function AllergySummary({ selected }: { selected: string[] }) {
   return <div className="allergy-summary"><Icon name="shield" size={20} /><div><b>Restrictions applied</b><span>{selected.length ? `Excluding: ${selected.join(", ")}` : "No allergies selected"}</span></div><span className="verified">CHECKED</span></div>;
 }
 
-function Result({ meal, restrictions, onBack, onEdit, another, order, group = false, participants = [], why, setWhy, whyText }: { meal: Meal; restrictions: string[]; onBack: () => void; onEdit: () => void; another: () => void; order: () => void; group?: boolean; participants?: Participant[]; why: boolean; setWhy: (v: boolean) => void; whyText: string }) {
+function Result({ meal, restrictions, onBack, onEdit, another, order, group = false, participants = [], why, setWhy, whyText, cuisineMatch }: { meal: Meal; restrictions: string[]; onBack: () => void; onEdit: () => void; another: () => void; order: () => void; group?: boolean; participants?: Participant[]; why: boolean; setWhy: (v: boolean) => void; whyText: string; cuisineMatch: string[] }) {
   const count = group ? Math.max(participants.length, 1) : 1;
   const mealTotal = meal.price * count;
   const total = mealTotal + meal.fee;
@@ -211,7 +190,7 @@ function Result({ meal, restrictions, onBack, onEdit, another, order, group = fa
       <div className="hero-image"><img src={meal.image} alt={meal.name} /><span className="mock-label">PROTOTYPE MATCH</span><div className="hero-badge"><Icon name="sparkle" size={14} /> MYSTERY UNLOCKED</div></div>
       <section className="meal-card">
         <div className="restaurant-row"><span className="restaurant-logo" style={{ background: meal.color }}>{meal.restaurant.charAt(0)}</span><div><b>{meal.restaurant}</b><span>{meal.cuisine} · {meal.distance} km away</span></div><span className="rating">★ 4.8</span></div>
-        <h1>{meal.name}</h1><div className="meal-badges">{meal.dietary.slice(0, 3).map(x => <span key={x}>✓ {x}</span>)}</div>
+        <h1>{meal.name}</h1><div className="meal-badges">{cuisineMatch.map(c => <span className="cuisine-badge" key={c}>★ {c}</span>)}{meal.dietary.slice(0, 3).map(x => <span key={x}>✓ {x}</span>)}</div>
         <div className="metrics"><div><Icon name="clock" /><span><small>DELIVERY</small><b>{meal.eta}</b></span></div><div><Icon name="wallet" /><span><small>{group ? "PER PERSON" : "MEAL PRICE"}</small><b>S${meal.price.toFixed(2)}</b></span></div></div>
         <div className="cost-breakdown">
           <p><span>Meal price{group ? ` × ${count}` : ""}</span><b>S${mealTotal.toFixed(2)}</b></p>
@@ -310,21 +289,23 @@ export default function App() {
   ]);
   const eligible = useMemo(() => {
     const requiredDiets = selectedDiets.filter(x => x !== "No restrictions");
-    return meals.filter(m => m.price <= budget && m.distance <= radius && !m.allergens.some(a => selectedAllergies.includes(a)) && requiredDiets.every(d => m.dietary.includes(d)) && (selectedCuisines.length === 0 || selectedCuisines.some(c => m.tags.includes(c))));
+    return meals.filter(m => m.price <= budget && m.distance <= radius && !m.allergens.some(a => selectedAllergies.includes(a)) && requiredDiets.every(d => m.dietary.includes(d)) && matchesCuisine(m, selectedCuisines));
   }, [budget, radius, selectedAllergies, selectedCuisines, selectedDiets]);
   const groupEligible = useMemo(() => {
     const allA = Array.from(new Set(participants.flatMap(p => p.allergies)));
     const allD = Array.from(new Set(participants.flatMap(p => p.dietary)));
-    return meals.filter(m => !m.allergens.some(a => allA.includes(a)) && allD.every(d => m.dietary.includes(d)) && m.price <= Math.min(...participants.map(p => p.budget)));
-  }, [participants]);
+    return meals.filter(m => !m.allergens.some(a => allA.includes(a)) && allD.every(d => m.dietary.includes(d)) && m.price <= Math.min(...participants.map(p => p.budget)) && m.distance <= radius && matchesCuisine(m, selectedCuisines));
+  }, [participants, radius, selectedCuisines]);
   const currentPool = group ? groupEligible : eligible;
   const currentMeal = currentPool[mealIndex % currentPool.length] || meals[3];
   const groupRestrictions = Array.from(new Set(participants.flatMap(p => p.allergies)));
   const prefsScreen: Screen = saved ? "summary" : "preferences";
   const lowest = participants.reduce((a, b) => b.budget < a.budget ? b : a, participants[0]);
+  const cuisineMatch = selectedCuisines.filter(c => currentMeal.tags.includes(c));
+  const moodText = cuisineMatch.length ? `it matches your ${cuisineMatch.join(" and ")} pick` : "you asked us to surprise you with anything";
   const whyText = group
-    ? `Its S$${currentMeal.price.toFixed(2)} meal price fits everyone's budget (the lowest is ${lowest?.name}'s S$${lowest?.budget}), and it's ${currentMeal.distance} km away.`
-    : `Its S$${currentMeal.price.toFixed(2)} meal price fits your ${budgetLabel(budget)} budget before fees, it's ${currentMeal.distance} km away (within your ${radius} km radius), and it matches ${currentMeal.tags.slice(0, 2).join(" and ").toLowerCase()} preferences.`;
+    ? `Its S$${currentMeal.price.toFixed(2)} meal price fits everyone's budget (the lowest is ${lowest?.name}'s S$${lowest?.budget}), it's ${currentMeal.distance} km away (within ${radius} km), and ${moodText}.`
+    : `Its S$${currentMeal.price.toFixed(2)} meal price fits your ${budgetLabel(budget)} budget before fees, it's ${currentMeal.distance} km away (within your ${radius} km radius), and ${moodText}.`;
   const goHome = () => { setScreen("home"); setGroup(false); };
   const startBox = () => { setWhy(false); setScreen(group ? "group" : "reveal"); };
   const savePrefs = () => {
@@ -342,9 +323,9 @@ export default function App() {
     {screen === "summary" && saved && <PreferenceSummary prefs={saved} onBack={goHome} edit={() => setScreen("preferences")} open={startBox} group={group} setGroup={setGroup} />}
     {screen === "preferences" && <Preferences onBack={leavePrefs} open={savePrefs} reset={resetPrefs} group={group} setGroup={setGroup} selectedAllergies={selectedAllergies} setSelectedAllergies={setSelectedAllergies} selectedDiets={selectedDiets} setSelectedDiets={setSelectedDiets} selectedCuisines={selectedCuisines} setSelectedCuisines={setSelectedCuisines} radius={radius} setRadius={setRadius} budget={budget} setBudget={setBudget} other={other} setOther={setOther} />}
     {screen === "reveal" && <Reveal onBack={() => setScreen(group ? "group" : prefsScreen)} finish={() => setScreen(group ? "groupResult" : "result")} />}
-    {screen === "result" && (eligible.length ? <Result meal={currentMeal} restrictions={selectedAllergies} onBack={() => setScreen(prefsScreen)} onEdit={() => setScreen("preferences")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} /> : <NoMatch group={false} onBack={() => setScreen("preferences")} />)}
+    {screen === "result" && (eligible.length ? <Result meal={currentMeal} restrictions={selectedAllergies} onBack={() => setScreen(prefsScreen)} onEdit={() => setScreen("preferences")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} cuisineMatch={cuisineMatch} /> : <NoMatch group={false} onBack={() => setScreen("preferences")} />)}
     {screen === "group" && <GroupSetup onBack={() => setScreen(prefsScreen)} find={() => { setMealIndex(0); setScreen("reveal"); }} participants={participants} setParticipants={setParticipants} />}
-    {screen === "groupResult" && (groupEligible.length ? <Result group meal={currentMeal} restrictions={groupRestrictions} participants={participants} onBack={() => setScreen("group")} onEdit={() => setScreen("group")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} /> : <NoMatch group onBack={() => setScreen("group")} />)}
+    {screen === "groupResult" && (groupEligible.length ? <Result group meal={currentMeal} restrictions={groupRestrictions} participants={participants} onBack={() => setScreen("group")} onEdit={() => setScreen("group")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} cuisineMatch={cuisineMatch} /> : <NoMatch group onBack={() => setScreen("group")} />)}
     {screen === "order" && <OrderReview meal={currentMeal} group={group} participants={participants} onBack={() => setScreen(group ? "groupResult" : "result")} home={goHome} />}
   </div></div>;
 }
