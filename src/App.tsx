@@ -219,6 +219,7 @@ function Result({ meal, restrictions, onBack, onEdit, another, order, group = fa
       {group && <section className="satisfied"><h3><Icon name="users" size={19} /> Everyone's requirements matched</h3>{participants.map(p => <div key={p.id}><span className="participant-avatar">{p.name[0]}</span><b>{p.name}</b><span>{[...p.allergies.map(a => `No ${a}`), ...p.dietary].join(" · ") || "No restrictions"}</span><i>✓</i></div>)}</section>}
       <section className="why-card"><button onClick={() => setWhy(!why)}><span><Icon name="sparkle" /><b>Why this meal?</b></span><span>{why ? "−" : "+"}</span></button>{why && <p>{whyText} All listed restrictions were checked against verified mock attributes.</p>}</section>
       <div className="notice"><Icon name="shield" size={18} /><p><b>Please confirm with the restaurant.</b> Ingredient and cross-contact information can change. This prototype does not claim a dish is allergy-safe.</p></div>
+      <p className="next-hint"><Icon name="shield" size={15} /> Next: confirm allergies and add notes for the kitchen</p>
       <button className="primary-button" onClick={order}>{group ? "CONFIRM FOR GROUP" : "I'LL TAKE IT"} <span>→</span></button>
       <button className="secondary-button" onClick={another}><Icon name="box" size={18} /> Try Another Box</button>
       <button className="edit-link" onClick={onEdit}>Edit preferences</button>
@@ -270,9 +271,12 @@ function OrderReview({ meal, group, participants, allergyNotes, onBack, home }: 
     <TopBar title="Review order" onBack={onBack} />
     <main className="page order-page">
       <section className="note-card">
-        <div className="order-section-title"><h3>Note to restaurant</h3><span>{note.length}/150</span></div>
-        {allergyNotes.length > 0 && <label className={`allergy-share ${shareAllergies ? "" : "off"}`}><input type="checkbox" checked={shareAllergies} onChange={e => setShareAllergies(e.target.checked)} /><span><b>Tell the restaurant about {group ? "our" : "my"} allergies</b><small>{shareAllergies ? allergyNotes.join(" · ") : "The restaurant won't be told about your allergies."}</small></span></label>}
-        <textarea maxLength={150} rows={2} placeholder="Any requests? e.g. no spring onions, sauce on the side" value={note} onChange={e => setNote(e.target.value)} />
+        <div className="note-head"><span><Icon name="shield" size={22} /></span><div><small>BEFORE YOU ORDER</small><h3>Allergies & notes for the kitchen</h3><p>Sent to {meal.restaurant} with your order.</p></div></div>
+        {allergyNotes.length > 0
+          ? <label className={`allergy-share ${shareAllergies ? "" : "off"}`}><input type="checkbox" checked={shareAllergies} onChange={e => setShareAllergies(e.target.checked)} /><span><b>Tell the restaurant about {group ? "our" : "my"} allergies</b><small>{shareAllergies ? allergyNotes.join(" · ") : "The restaurant won't be told about your allergies."}</small></span></label>
+          : <div className="allergy-share off"><span><b>No allergies listed</b><small>Have one? Write it in the note below so the kitchen knows.</small></span></div>}
+        <div className="note-label"><b>Requests or allergy details</b><span>{note.length}/150</span></div>
+        <textarea maxLength={150} rows={2} placeholder="e.g. severe peanut allergy, no spring onions" value={note} onChange={e => setNote(e.target.value)} />
         <div className="chips">{quickNotes.map(q => <button className="chip" key={q} onClick={() => addQuick(q)}>+ {q}</button>)}</div>
       </section>
       <div className="eta-card"><span><Icon name="clock" /></span><div><small>ESTIMATED ARRIVAL</small><h2>{meal.eta}</h2><p>From {meal.restaurant}</p></div></div>
