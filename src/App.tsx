@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-type Screen = "home" | "preferences" | "reveal" | "result" | "group" | "groupResult" | "order";
+type Screen = "home" | "summary" | "preferences" | "reveal" | "result" | "group" | "groupResult" | "order";
 type IconName = "arrow" | "box" | "clock" | "home" | "food" | "orders" | "pay" | "pin" | "search" | "shield" | "sparkle" | "users" | "wallet";
 type Participant = { id: number; name: string; allergies: string[]; dietary: string[]; budget: number };
 type Meal = {
@@ -11,6 +11,17 @@ type Meal = {
 const allergies = ["Peanuts", "Tree nuts", "Shellfish", "Crustaceans", "Fish", "Eggs", "Milk / dairy", "Soy", "Wheat / gluten", "Sesame"];
 const diets = ["No restrictions", "Halal", "Vegetarian", "Vegan", "No pork", "No beef", "Pescatarian"];
 const cuisines = ["Rice", "Noodles", "Western", "Japanese", "Korean", "Chinese", "Indian", "Local favourites", "Healthy", "High protein"];
+const budgetOptions = [{ label: "Under S$10", max: 10 }, { label: "S$10–15", max: 15 }, { label: "S$15–20", max: 20 }];
+const budgetLabel = (budget: number) => budgetOptions.find(o => o.max === budget)?.label ?? `Up to S$${budget}`;
+
+type SavedPrefs = { allergies: string[]; diets: string[]; cuisines: string[]; radius: number; budget: number; other: string };
+const PREFS_KEY = "grab-blind-box-prefs";
+function loadPrefs(): SavedPrefs | null {
+  try { const raw = localStorage.getItem(PREFS_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function storePrefs(prefs: SavedPrefs) {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage unavailable */ }
+}
 const images = {
   bowl: "https://images.unsplash.com/photo-1597958792579-bd3517df6399?auto=format&fit=crop&w=900&q=85",
   bento: "https://images.unsplash.com/photo-1594955332421-2033cfd867b4?auto=format&fit=crop&w=900&q=85",
@@ -27,6 +38,8 @@ const meals: Meal[] = [
   { id: 5, name: "Chicken Aglio Olio", restaurant: "Pasta Works", cuisine: "Western", tags: ["Noodles", "Western", "High protein"], dietary: ["No pork", "No beef"], allergens: ["Wheat / gluten", "Milk / dairy"], price: 16.9, distance: 3.6, eta: "30–40 min", fee: 4.8, image: images.noodles, color: "#F9EEE4" },
   { id: 6, name: "Teriyaki Tofu Don", restaurant: "Japanese Bento Co.", cuisine: "Japanese", tags: ["Rice", "Japanese", "Vegetarian"], dietary: ["Vegetarian", "No pork", "No beef"], allergens: ["Soy"], price: 11.9, distance: 2.1, eta: "20–30 min", fee: 3.9, image: images.bowl, color: "#F1EFE7" },
   { id: 7, name: "Lime Chicken Rice Noodles", restaurant: "Green Bowl Kitchen", cuisine: "Southeast Asian", tags: ["Noodles", "Healthy", "High protein"], dietary: ["Halal", "No pork", "No beef"], allergens: [], price: 13.5, distance: 1.8, eta: "20–30 min", fee: 4.5, image: images.padthai, color: "#EAF7E8" },
+  { id: 8, name: "Vegetable Brown Rice Bento", restaurant: "Plant Plate", cuisine: "Healthy", tags: ["Rice", "Healthy"], dietary: ["Halal", "Vegetarian", "Vegan", "No pork", "No beef", "Pescatarian"], allergens: ["Soy"], price: 9.9, distance: 1.5, eta: "15–25 min", fee: 3.2, image: images.veggie, color: "#EAF8E7" },
+  { id: 9, name: "Hainanese Chicken Rice", restaurant: "Uncle Lim's Chicken Rice", cuisine: "Local favourites", tags: ["Rice", "Local favourites"], dietary: ["No pork", "No beef"], allergens: ["Soy", "Sesame"], price: 6.5, distance: 1.2, eta: "15–25 min", fee: 2.9, image: images.bowl, color: "#FFF2DE" },
 ];
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -63,7 +76,8 @@ function StatusBar() {
   return <div className="statusbar"><span>9:41</span><span className="status-icons">● ◒ ▰</span></div>;
 }
 
-function Home({ go }: { go: (s: Screen) => void }) {
+function Home({ go, saved, again }: { go: (s: Screen) => void; saved: boolean; again: () => void }) {
+  const start = () => go(saved ? "summary" : "preferences");
   return <div className="screen home-screen">
     <div className="home-green">
       <TopBar action={<button className="avatar">JL</button>} />
@@ -75,9 +89,12 @@ function Home({ go }: { go: (s: Screen) => void }) {
         {[["food", "Food", "#E8F8EF"], ["pay", "Pay", "#EBF5FF"], ["orders", "Mart", "#FFF1E7"], ["wallet", "More", "#F2EEFF"]].map(([icon, label, bg]) =>
           <button className="service" key={label}><span style={{ background: bg }}><Icon name={icon as IconName} /></span><b>{label}</b></button>)}
       </div>
-      <section className="blind-card" onClick={() => go("preferences")}>
-        <div className="blind-copy"><div className="eyebrow light"><Icon name="sparkle" size={14} /> NEW FOR LUNCH</div><h1>GRAB<br />BLIND BOX</h1><p>Too many choices?<br />Let us surprise you.</p>
-          <button className="white-button" onClick={(e) => { e.stopPropagation(); go("preferences"); }}>Surprise Me <span>→</span></button>
+      <section className="blind-card" onClick={start}>
+        <div className="blind-copy"><div className="eyebrow light"><Icon name="sparkle" size={14} /> {saved ? "WELCOME BACK" : "NEW FOR LUNCH"}</div><h1>GRAB<br />BLIND BOX</h1><p>{saved ? <>Your preferences are saved.<br />One tap to lunch.</> : <>Too many choices?<br />Let us surprise you.</>}</p>
+          {saved
+            ? <><button className="white-button" onClick={(e) => { e.stopPropagation(); again(); }}>Surprise Me Again <span>↻</span></button>
+              <button className="card-link" onClick={(e) => { e.stopPropagation(); go("summary"); }}>Review preferences</button></>
+            : <button className="white-button" onClick={(e) => { e.stopPropagation(); start(); }}>Surprise Me <span>→</span></button>}
         </div>
         <div className="box-art"><span className="box-star s1">✦</span><span className="box-star s2">✦</span><div className="lid"></div><div className="giftbox"><span>?</span></div><div className="bowl-art"><i></i></div></div>
         <div className="card-caption">Your next meal, picked for you</div>
@@ -95,21 +112,58 @@ function Home({ go }: { go: (s: Screen) => void }) {
 function RangeField({ title, value, min, max, step, suffix, prefix = "", onChange }: { title: string; value: number; min: number; max: number; step: number; suffix: string; prefix?: string; onChange: (v: number) => void }) {
   const pct = ((value - min) / (max - min)) * 100;
   return <section className="setting-section">
-    <div className="setting-head"><div><h3>{title}</h3><p>{title.includes("budget") ? "Maximum meal price, before fees" : "Closer options usually arrive faster"}</p></div>
+    <div className="setting-head"><div><h3>{title}</h3><p>Closer options usually arrive faster</p></div>
       <label className="value-input">{prefix}<input type="number" value={value} min={min} max={max} step={step} onChange={e => onChange(Math.min(max, Math.max(min, Number(e.target.value))))} />{suffix}</label>
     </div>
     <input className="range" type="range" min={min} max={max} step={step} value={value} style={{ "--fill": `${pct}%` } as React.CSSProperties} onChange={e => onChange(Number(e.target.value))} />
-    <div className="range-labels"><span>{prefix}{min}{suffix}</span><strong>{title.includes("budget") ? `${prefix}${value} per person` : `Within ${value} km`}</strong><span>{prefix}{max}{suffix}</span></div>
+    <div className="range-labels"><span>{prefix}{min}{suffix}</span><strong>Within {value} km</strong><span>{prefix}{max}{suffix}</span></div>
   </section>;
 }
 
-function Preferences({ onBack, open, group, setGroup, selectedAllergies, setSelectedAllergies, selectedDiets, setSelectedDiets, selectedCuisines, setSelectedCuisines, radius, setRadius, budget, setBudget, other, setOther }:
-  { onBack: () => void; open: () => void; group: boolean; setGroup: (v: boolean) => void; selectedAllergies: string[]; setSelectedAllergies: (v: string[]) => void; selectedDiets: string[]; setSelectedDiets: (v: string[]) => void; selectedCuisines: string[]; setSelectedCuisines: (v: string[]) => void; radius: number; setRadius: (v: number) => void; budget: number; setBudget: (v: number) => void; other: string; setOther: (v: string) => void }) {
+function BudgetField({ budget, setBudget }: { budget: number; setBudget: (v: number) => void }) {
+  const [custom, setCustom] = useState(!budgetOptions.some(o => o.max === budget));
+  return <section className="setting-section">
+    <div className="setting-head"><div><h3>What's your lunch budget?</h3><p>Meal price only. Delivery fees are shown separately.</p></div></div>
+    <div className="budget-options">
+      {budgetOptions.map(o => <button key={o.label} className={!custom && budget === o.max ? "active" : ""} onClick={() => { setCustom(false); setBudget(o.max); }}>{o.label}</button>)}
+      <button className={custom ? "active" : ""} onClick={() => setCustom(true)}>Custom</button>
+    </div>
+    {custom && <label className="custom-budget">Up to S$<input type="number" min={5} max={50} value={budget} onChange={e => setBudget(Math.min(50, Math.max(5, Number(e.target.value))))} /> per meal</label>}
+  </section>;
+}
+
+function PreferenceSummary({ onBack, edit, open, group, setGroup, prefs }: { onBack: () => void; edit: () => void; open: () => void; group: boolean; setGroup: (v: boolean) => void; prefs: SavedPrefs }) {
+  const diet = prefs.diets.filter(d => d !== "No restrictions");
+  const allergyText = [...prefs.allergies, prefs.other.trim()].filter(Boolean).join(", ");
+  const rows: [IconName, string, string, boolean?][] = [
+    ["shield", "Allergies", allergyText || "None", !!allergyText],
+    ["food", "Diet", diet.join(", ") || "No restrictions"],
+    ["wallet", "Budget", `${budgetLabel(prefs.budget)} · meal only`],
+    ["pin", "Distance", `Within ${prefs.radius} km`],
+    ["sparkle", "Mood", prefs.cuisines.join(", ") || "Surprise me with anything"],
+  ];
+  return <div className="screen scroll-screen">
+    <TopBar title="Your Blind Box" onBack={onBack} action={<button className="text-button" onClick={edit}>Edit</button>} />
+    <main className="page">
+      <div className="intro-row"><div><span className="step">SAVED PREFERENCES</span><h1>Same as last time?</h1><p>Check your saved preferences, then open your box.</p></div><div className="mini-box">?</div></div>
+      <section className="pref-summary">{rows.map(([icon, label, value, warn]) =>
+        <button key={label} className={warn ? "warn" : ""} onClick={edit}><Icon name={icon} size={18} /><span><small>{label}</small><b>{value}</b></span><i>›</i></button>)}
+      </section>
+      <button className="group-toggle" onClick={() => setGroup(!group)}><span className="group-icon"><Icon name="users" /></span><span><b>Deciding for a group?</b><small>Combine everyone's needs</small></span><span className={`toggle ${group ? "on" : ""}`}><i /></span></button>
+      <button className="primary-button" onClick={open}>{group ? "SET UP MY GROUP" : "OPEN MY BLIND BOX"} <Icon name="sparkle" size={19} /></button>
+      <button className="secondary-button" onClick={edit}>Edit preferences</button>
+      <p className="action-helper">Allergies changed? Update them before you order.</p>
+    </main>
+  </div>;
+}
+
+function Preferences({ onBack, open, reset, group, setGroup, selectedAllergies, setSelectedAllergies, selectedDiets, setSelectedDiets, selectedCuisines, setSelectedCuisines, radius, setRadius, budget, setBudget, other, setOther }:
+  { onBack: () => void; open: () => void; reset: () => void; group: boolean; setGroup: (v: boolean) => void; selectedAllergies: string[]; setSelectedAllergies: (v: string[]) => void; selectedDiets: string[]; setSelectedDiets: (v: string[]) => void; selectedCuisines: string[]; setSelectedCuisines: (v: string[]) => void; radius: number; setRadius: (v: number) => void; budget: number; setBudget: (v: number) => void; other: string; setOther: (v: string) => void }) {
   const toggle = (item: string, list: string[], setter: (v: string[]) => void) => setter(list.includes(item) ? list.filter(x => x !== item) : [...list.filter(x => x !== "No restrictions"), item]);
   return <div className="screen scroll-screen">
-    <TopBar title="Build your Blind Box" onBack={onBack} action={<button className="text-button">Reset</button>} />
+    <TopBar title="Build your Blind Box" onBack={onBack} action={<button className="text-button" onClick={reset}>Reset</button>} />
     <main className="page">
-      <div className="intro-row"><div><span className="step">STEP 1 OF 2</span><h1>What works for you?</h1><p>Set it once. We'll only pick from matching meals.</p></div><div className="mini-box">?</div></div>
+      <div className="intro-row"><div><span className="step">STEP 1 OF 2</span><h1>What works for you?</h1><p>Set it once. We'll save it for next time.</p></div><div className="mini-box">?</div></div>
       <section className="safety-card">
         <div className="safety-title"><span><Icon name="shield" /></span><div><h2>Allergies & dietary requirements</h2><p>Your safety matters. Review before continuing.</p></div></div>
         <h3>Exclude known allergens</h3><div className="chips">{allergies.map(a => <Chip key={a} label={a} active={selectedAllergies.includes(a)} tone="amber" onClick={() => toggle(a, selectedAllergies, setSelectedAllergies)} />)}</div>
@@ -118,13 +172,13 @@ function Preferences({ onBack, open, group, setGroup, selectedAllergies, setSele
         <h3>Dietary requirements</h3><p className="helper">These are handled separately from allergies.</p><div className="chips">{diets.map(d => <Chip key={d} label={d} active={selectedDiets.includes(d)} onClick={() => d === "No restrictions" ? setSelectedDiets(["No restrictions"]) : toggle(d, selectedDiets, setSelectedDiets)} />)}</div>
       </section>
       <RangeField title="How far are you willing to order?" value={radius} min={1} max={15} step={0.5} suffix=" km" onChange={setRadius} />
-      <RangeField title="What's your budget?" value={budget} min={5} max={50} step={1} suffix="" prefix="S$" onChange={setBudget} />
+      <BudgetField budget={budget} setBudget={setBudget} />
       <section className="setting-section"><h3>Anything you're in the mood for?</h3><p>Optional — choose as many as you like.</p><div className="chips cuisine-chips">{cuisines.map(c => <Chip key={c} label={c} active={selectedCuisines.includes(c)} onClick={() => toggle(c, selectedCuisines, setSelectedCuisines)} />)}</div>
         <button className={`anything ${selectedCuisines.length === 0 ? "active" : ""}`} onClick={() => setSelectedCuisines([])}><Icon name="sparkle" size={18} /> Surprise me with anything</button>
       </section>
       <button className="group-toggle" onClick={() => setGroup(!group)}><span className="group-icon"><Icon name="users" /></span><span><b>Deciding for a group?</b><small>Combine everyone's needs</small></span><span className={`toggle ${group ? "on" : ""}`}><i /></span></button>
       <button className="primary-button" onClick={open}>{group ? "SET UP MY GROUP" : "OPEN MY BLIND BOX"} <Icon name="sparkle" size={19} /></button>
-      <p className="action-helper">We'll find a random meal that matches your preferences.</p>
+      <p className="action-helper">We'll save these so next time you can skip straight to your box.</p>
     </main>
   </div>;
 }
@@ -146,9 +200,10 @@ function AllergySummary({ selected }: { selected: string[] }) {
   return <div className="allergy-summary"><Icon name="shield" size={20} /><div><b>Restrictions applied</b><span>{selected.length ? `Excluding: ${selected.join(", ")}` : "No allergies selected"}</span></div><span className="verified">CHECKED</span></div>;
 }
 
-function Result({ meal, restrictions, onBack, another, order, group = false, participants = [], why, setWhy }: { meal: Meal; restrictions: string[]; onBack: () => void; another: () => void; order: () => void; group?: boolean; participants?: Participant[]; why: boolean; setWhy: (v: boolean) => void }) {
-  const count = Math.max(participants.length, 1);
-  const total = meal.price * count + meal.fee;
+function Result({ meal, restrictions, onBack, onEdit, another, order, group = false, participants = [], why, setWhy, whyText }: { meal: Meal; restrictions: string[]; onBack: () => void; onEdit: () => void; another: () => void; order: () => void; group?: boolean; participants?: Participant[]; why: boolean; setWhy: (v: boolean) => void; whyText: string }) {
+  const count = group ? Math.max(participants.length, 1) : 1;
+  const mealTotal = meal.price * count;
+  const total = mealTotal + meal.fee;
   return <div className="screen scroll-screen result-screen">
     <TopBar title={group ? "Your group match" : "Mystery unlocked"} onBack={onBack} action={<button className="icon-btn"><Icon name="orders" /></button>} />
     <main className="page result-page">
@@ -158,14 +213,19 @@ function Result({ meal, restrictions, onBack, another, order, group = false, par
         <div className="restaurant-row"><span className="restaurant-logo" style={{ background: meal.color }}>{meal.restaurant.charAt(0)}</span><div><b>{meal.restaurant}</b><span>{meal.cuisine} · {meal.distance} km away</span></div><span className="rating">★ 4.8</span></div>
         <h1>{meal.name}</h1><div className="meal-badges">{meal.dietary.slice(0, 3).map(x => <span key={x}>✓ {x}</span>)}</div>
         <div className="metrics"><div><Icon name="clock" /><span><small>DELIVERY</small><b>{meal.eta}</b></span></div><div><Icon name="wallet" /><span><small>{group ? "PER PERSON" : "MEAL PRICE"}</small><b>S${meal.price.toFixed(2)}</b></span></div></div>
-        <div className="total-row"><span><b>Estimated total</b><small>{group ? `${count} people · ` : ""}Includes S${meal.fee.toFixed(2)} fees</small></span><strong>S${total.toFixed(2)}</strong></div>
+        <div className="cost-breakdown">
+          <p><span>Meal price{group ? ` × ${count}` : ""}</span><b>S${mealTotal.toFixed(2)}</b></p>
+          <p><span>Delivery & service fees</span><b>S${meal.fee.toFixed(2)}</b></p>
+          <div><span>Total you pay</span><strong>S${total.toFixed(2)}</strong></div>
+          <small>Your budget covers the meal price. Fees are added on top.</small>
+        </div>
       </section>
       {group && <section className="satisfied"><h3><Icon name="users" size={19} /> Everyone's requirements matched</h3>{participants.map(p => <div key={p.id}><span className="participant-avatar">{p.name[0]}</span><b>{p.name}</b><span>{[...p.allergies.map(a => `No ${a}`), ...p.dietary].join(" · ") || "No restrictions"}</span><i>✓</i></div>)}</section>}
-      <section className="why-card"><button onClick={() => setWhy(!why)}><span><Icon name="sparkle" /><b>Why this meal?</b></span><span>{why ? "−" : "+"}</span></button>{why && <p>Selected because it is within your S${meal.price.toFixed(0)} budget and {meal.distance} km radius, and matches {meal.tags.slice(0, 2).join(" and ").toLowerCase()} preferences. All listed restrictions were checked against verified mock attributes.</p>}</section>
+      <section className="why-card"><button onClick={() => setWhy(!why)}><span><Icon name="sparkle" /><b>Why this meal?</b></span><span>{why ? "−" : "+"}</span></button>{why && <p>{whyText} All listed restrictions were checked against verified mock attributes.</p>}</section>
       <div className="notice"><Icon name="shield" size={18} /><p><b>Please confirm with the restaurant.</b> Ingredient and cross-contact information can change. This prototype does not claim a dish is allergy-safe.</p></div>
       <button className="primary-button" onClick={order}>{group ? "CONFIRM FOR GROUP" : "I'LL TAKE IT"} <span>→</span></button>
       <button className="secondary-button" onClick={another}><Icon name="box" size={18} /> Try Another Box</button>
-      <button className="edit-link" onClick={onBack}>Edit preferences</button>
+      <button className="edit-link" onClick={onEdit}>Edit preferences</button>
     </main>
   </div>;
 }
@@ -175,7 +235,7 @@ function GroupSetup({ onBack, find, participants, setParticipants }: { onBack: (
   const [name, setName] = useState("");
   const [allergy, setAllergy] = useState("");
   const [diet, setDiet] = useState("");
-  const add = () => { if (!name.trim()) return; setParticipants([...participants, { id: Date.now(), name, allergies: allergy ? [allergy] : [], dietary: diet ? [diet] : [], budget: 18 }]); setName(""); setAllergy(""); setDiet(""); setAdding(false); };
+  const add = () => { if (!name.trim()) return; setParticipants([...participants, { id: Date.now(), name, allergies: allergy ? [allergy] : [], dietary: diet ? [diet] : [], budget: 15 }]); setName(""); setAllergy(""); setDiet(""); setAdding(false); };
   return <div className="screen scroll-screen">
     <TopBar title="Group Blind Box" onBack={onBack} />
     <main className="page">
@@ -184,7 +244,12 @@ function GroupSetup({ onBack, find, participants, setParticipants }: { onBack: (
       <div className="participant-list">{participants.map((p, i) => <div className="participant-card" key={p.id}><span className="participant-avatar" style={{ background: ["#E9F7ED", "#FFF0DE", "#EDEBFF"][i % 3] }}>{p.name[0]}</span><div><b>{p.name}{i === 0 && <small>YOU</small>}</b><p>{[...p.allergies.map(a => `${a} allergy`), ...p.dietary].join(" · ") || "No restrictions"}</p><span>Up to S${p.budget} per person</span></div><button onClick={() => { const n = prompt("Update name", p.name); if (n) setParticipants(participants.map(x => x.id === p.id ? { ...x, name: n } : x)); }}>Edit</button></div>)}</div>
       {adding && <div className="add-card"><h3>Add participant</h3><input placeholder="Name or nickname" value={name} onChange={e => setName(e.target.value)} /><div className="two-fields"><select value={allergy} onChange={e => setAllergy(e.target.value)}><option value="">No allergy</option>{allergies.map(a => <option key={a}>{a}</option>)}</select><select value={diet} onChange={e => setDiet(e.target.value)}><option value="">No diet</option>{diets.slice(1).map(d => <option key={d}>{d}</option>)}</select></div><div className="modal-actions"><button onClick={() => setAdding(false)}>Cancel</button><button onClick={add}>Add person</button></div></div>}
       <section className="combine-card"><div className="combine-title"><Icon name="shield" /><div><h3>Combined safety check</h3><p>Known conflicts are excluded for everyone.</p></div></div><div className="combined-chips">{Array.from(new Set(participants.flatMap(p => [...p.allergies.map(a => `No ${a}`), ...p.dietary]))).map(x => <span key={x}>✓ {x}</span>)}</div></section>
-      <section className="budget-choice"><h3>Group budget</h3><div><button className="active">Per person <b>S$18</b></button><button>Total group <b>S${participants.length * 18}</b></button></div></section>
+      <section className="budget-sliders"><h3>Individual meal budgets</h3><p>Everyone sets their own limit. We'll pick a meal that fits every budget.</p>
+        {participants.map(p => <div className="budget-slider" key={p.id}><div><b>{p.name}</b><span>S${p.budget}</span></div>
+          <input className="range" type="range" min={5} max={30} step={1} value={p.budget} aria-label={`${p.name}'s meal budget`} style={{ "--fill": `${((p.budget - 5) / 25) * 100}%` } as React.CSSProperties} onChange={e => setParticipants(participants.map(x => x.id === p.id ? { ...x, budget: Number(e.target.value) } : x))} /></div>)}
+        <div className="budget-total"><span>Combined meal budget</span><strong>S${participants.reduce((sum, p) => sum + p.budget, 0)}</strong></div>
+        <small>Delivery fees are not included.</small>
+      </section>
       <button className="primary-button" onClick={find}>FIND A MEAL FOR EVERYONE <Icon name="sparkle" size={18} /></button>
       <p className="action-helper">Safety requirements are never overridden.</p>
     </main>
@@ -227,19 +292,20 @@ function NoMatch({ group, onBack }: { group: boolean; onBack: () => void }) {
 }
 
 export default function App() {
+  const [saved, setSaved] = useState<SavedPrefs | null>(loadPrefs);
   const [screen, setScreen] = useState<Screen>("home");
   const [group, setGroup] = useState(false);
-  const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
-  const [selectedDiets, setSelectedDiets] = useState<string[]>(["No restrictions"]);
-  const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
-  const [radius, setRadius] = useState(3);
-  const [budget, setBudget] = useState(15);
-  const [other, setOther] = useState("");
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(saved?.allergies ?? []);
+  const [selectedDiets, setSelectedDiets] = useState<string[]>(saved?.diets ?? ["No restrictions"]);
+  const [selectedCuisines, setSelectedCuisines] = useState<string[]>(saved?.cuisines ?? []);
+  const [radius, setRadius] = useState(saved?.radius ?? 3);
+  const [budget, setBudget] = useState(saved?.budget ?? 15);
+  const [other, setOther] = useState(saved?.other ?? "");
   const [mealIndex, setMealIndex] = useState(0);
   const [why, setWhy] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([
-    { id: 1, name: "Alex", allergies: ["Peanuts"], dietary: ["No pork"], budget: 18 },
-    { id: 2, name: "Jamie", allergies: [], dietary: ["Vegetarian"], budget: 18 },
+    { id: 1, name: "Alex", allergies: ["Peanuts"], dietary: ["No pork"], budget: 12 },
+    { id: 2, name: "Jamie", allergies: [], dietary: ["Vegetarian"], budget: 15 },
     { id: 3, name: "Sam", allergies: [], dietary: ["Halal"], budget: 18 },
   ]);
   const eligible = useMemo(() => {
@@ -254,14 +320,31 @@ export default function App() {
   const currentPool = group ? groupEligible : eligible;
   const currentMeal = currentPool[mealIndex % currentPool.length] || meals[3];
   const groupRestrictions = Array.from(new Set(participants.flatMap(p => p.allergies)));
-  const goHome = () => { setScreen("home"); setGroup(false); setMealIndex(0); };
+  const prefsScreen: Screen = saved ? "summary" : "preferences";
+  const lowest = participants.reduce((a, b) => b.budget < a.budget ? b : a, participants[0]);
+  const whyText = group
+    ? `Its S$${currentMeal.price.toFixed(2)} meal price fits everyone's budget (the lowest is ${lowest?.name}'s S$${lowest?.budget}), and it's ${currentMeal.distance} km away.`
+    : `Its S$${currentMeal.price.toFixed(2)} meal price fits your ${budgetLabel(budget)} budget before fees, it's ${currentMeal.distance} km away (within your ${radius} km radius), and it matches ${currentMeal.tags.slice(0, 2).join(" and ").toLowerCase()} preferences.`;
+  const goHome = () => { setScreen("home"); setGroup(false); };
+  const startBox = () => { setWhy(false); setScreen(group ? "group" : "reveal"); };
+  const savePrefs = () => {
+    const prefs = { allergies: selectedAllergies, diets: selectedDiets, cuisines: selectedCuisines, radius, budget, other };
+    storePrefs(prefs);
+    setSaved(prefs);
+    startBox();
+  };
+  const applyPrefs = (p: SavedPrefs) => { setSelectedAllergies(p.allergies); setSelectedDiets(p.diets); setSelectedCuisines(p.cuisines); setRadius(p.radius); setBudget(p.budget); setOther(p.other); };
+  const resetPrefs = () => applyPrefs({ allergies: [], diets: ["No restrictions"], cuisines: [], radius: 3, budget: 15, other: "" });
+  const leavePrefs = () => { if (saved) { applyPrefs(saved); setScreen("summary"); } else goHome(); };
+  const surpriseAgain = () => { setGroup(false); setMealIndex(x => x + 1); setWhy(false); setScreen("reveal"); };
   return <div className="app-shell"><div className="phone"><StatusBar />
-    {screen === "home" && <Home go={setScreen} />}
-    {screen === "preferences" && <Preferences onBack={goHome} open={() => group ? setScreen("group") : setScreen("reveal")} group={group} setGroup={setGroup} selectedAllergies={selectedAllergies} setSelectedAllergies={setSelectedAllergies} selectedDiets={selectedDiets} setSelectedDiets={setSelectedDiets} selectedCuisines={selectedCuisines} setSelectedCuisines={setSelectedCuisines} radius={radius} setRadius={setRadius} budget={budget} setBudget={setBudget} other={other} setOther={setOther} />}
-    {screen === "reveal" && <Reveal onBack={() => setScreen(group ? "group" : "preferences")} finish={() => setScreen(group ? "groupResult" : "result")} />}
-    {screen === "result" && (eligible.length ? <Result meal={currentMeal} restrictions={selectedAllergies} onBack={() => setScreen("preferences")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} /> : <NoMatch group={false} onBack={() => setScreen("preferences")} />)}
-    {screen === "group" && <GroupSetup onBack={() => setScreen("preferences")} find={() => { setMealIndex(0); setScreen("reveal"); }} participants={participants} setParticipants={setParticipants} />}
-    {screen === "groupResult" && (groupEligible.length ? <Result group meal={currentMeal} restrictions={groupRestrictions} participants={participants} onBack={() => setScreen("group")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} /> : <NoMatch group onBack={() => setScreen("group")} />)}
+    {screen === "home" && <Home go={setScreen} saved={!!saved} again={surpriseAgain} />}
+    {screen === "summary" && saved && <PreferenceSummary prefs={saved} onBack={goHome} edit={() => setScreen("preferences")} open={startBox} group={group} setGroup={setGroup} />}
+    {screen === "preferences" && <Preferences onBack={leavePrefs} open={savePrefs} reset={resetPrefs} group={group} setGroup={setGroup} selectedAllergies={selectedAllergies} setSelectedAllergies={setSelectedAllergies} selectedDiets={selectedDiets} setSelectedDiets={setSelectedDiets} selectedCuisines={selectedCuisines} setSelectedCuisines={setSelectedCuisines} radius={radius} setRadius={setRadius} budget={budget} setBudget={setBudget} other={other} setOther={setOther} />}
+    {screen === "reveal" && <Reveal onBack={() => setScreen(group ? "group" : prefsScreen)} finish={() => setScreen(group ? "groupResult" : "result")} />}
+    {screen === "result" && (eligible.length ? <Result meal={currentMeal} restrictions={selectedAllergies} onBack={() => setScreen(prefsScreen)} onEdit={() => setScreen("preferences")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} /> : <NoMatch group={false} onBack={() => setScreen("preferences")} />)}
+    {screen === "group" && <GroupSetup onBack={() => setScreen(prefsScreen)} find={() => { setMealIndex(0); setScreen("reveal"); }} participants={participants} setParticipants={setParticipants} />}
+    {screen === "groupResult" && (groupEligible.length ? <Result group meal={currentMeal} restrictions={groupRestrictions} participants={participants} onBack={() => setScreen("group")} onEdit={() => setScreen("group")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} /> : <NoMatch group onBack={() => setScreen("group")} />)}
     {screen === "order" && <OrderReview meal={currentMeal} group={group} participants={participants} onBack={() => setScreen(group ? "groupResult" : "result")} home={goHome} />}
   </div></div>;
 }
