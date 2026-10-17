@@ -2,14 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { meals, type Meal } from "./meals";
 
 type Screen = "home" | "summary" | "preferences" | "reveal" | "result" | "group" | "groupResult" | "order";
-type IconName = "arrow" | "box" | "clock" | "home" | "food" | "orders" | "pay" | "pin" | "search" | "shield" | "sparkle" | "users" | "wallet";
+type IconName = "arrow" | "box" | "chat" | "scan" | "user" | "clock" | "home" | "food" | "orders" | "pay" | "pin" | "search" | "shield" | "sparkle" | "users" | "wallet";
 type Participant = { id: number; name: string; allergies: string[]; dietary: string[]; budget: number };
 
 const allergies = ["Peanuts", "Tree nuts", "Shellfish", "Crustaceans", "Fish", "Eggs", "Milk / dairy", "Soy", "Wheat / gluten", "Sesame"];
 const diets = ["No restrictions", "Halal", "Vegetarian", "Vegan", "No pork", "No beef", "Pescatarian"];
-const cuisines = ["Rice", "Noodles", "Western", "Japanese", "Korean", "Chinese", "Indian", "Local favourites", "Healthy", "High protein"];
+// Picks within a group mean "any of these"; picks across groups must all match (Rice + Korean = Korean rice dishes).
+const cuisineGroups = [
+  { title: "Rice or noodles?", options: ["Rice", "Noodles"] },
+  { title: "Cuisine", options: ["Western", "Japanese", "Korean", "Chinese", "Indian", "Local favourites"] },
+  { title: "Extras", options: ["Healthy", "High protein"] },
+];
 const budgetOptions = [{ label: "Under S$10", max: 10 }, { label: "S$10–15", max: 15 }, { label: "S$15–20", max: 20 }];
-const matchesCuisine = (meal: Meal, picked: string[]) => picked.length === 0 || picked.some(c => meal.tags.includes(c));
+const matchesCuisine = (meal: Meal, picked: string[]) => cuisineGroups.every(g => {
+  const inGroup = picked.filter(c => g.options.includes(c));
+  return inGroup.length === 0 || inGroup.some(c => meal.tags.includes(c));
+});
 const budgetLabel = (budget: number) => budgetOptions.find(o => o.max === budget)?.label ?? `Up to S$${budget}`;
 
 type SavedPrefs = { allergies: string[]; diets: string[]; cuisines: string[]; radius: number; budget: number; other: string };
@@ -30,6 +38,9 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>, shield: <><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" /><path d="m9 12 2 2 4-4" /></>,
     sparkle: <><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4zM19 15l.7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>,
+    chat: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />,
+    scan: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M4 12h16" /></>,
+    user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
     wallet: <><path d="M4 6h14a2 2 0 0 1 2 2v11H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h13v3" /><path d="M15 11h7v5h-7a2.5 2.5 0 0 1 0-5Z" /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
@@ -55,18 +66,24 @@ function StatusBar() {
   return <div className="statusbar"><span>9:41</span><span className="status-icons">● ◒ ▰</span></div>;
 }
 
+const services: [string, string][] = [["🚗", "Transport"], ["🍔", "Food"], ["🛒", "Mart"], ["🍽️", "Dine Out"], ["📦", "Express"], ["📅", "Chope"], ["🛍️", "Shopping"], ["▦", "All"]];
+
 function Home({ go, saved, again }: { go: (s: Screen) => void; saved: boolean; again: () => void }) {
   const start = () => go(saved ? "summary" : "preferences");
   return <div className="screen home-screen">
-    <div className="home-green">
-      <TopBar action={<button className="avatar">JL</button>} />
-      <button className="location"><Icon name="pin" size={16} /><span><small>Deliver to</small><strong>One Raffles Place</strong></span><span>⌄</span></button>
-      <div className="search"><Icon name="search" /><span>What are you craving?</span></div>
-    </div>
+    <header className="home-header">
+      <div className="home-search"><Icon name="search" size={18} /><span>Search the Grab app</span></div>
+      <button className="header-icon" aria-label="Scan to pay"><Icon name="scan" /></button>
+      <button className="avatar" aria-label="Account">JL</button>
+    </header>
     <main className="home-content">
       <div className="service-grid">
-        {[["food", "Food", "#E8F8EF"], ["pay", "Pay", "#EBF5FF"], ["orders", "Mart", "#FFF1E7"], ["wallet", "More", "#F2EEFF"]].map(([icon, label, bg]) =>
-          <button className="service" key={label}><span style={{ background: bg }}><Icon name={icon as IconName} /></span><b>{label}</b></button>)}
+        {services.map(([emoji, label]) => <button className="service" key={label}><span aria-hidden="true">{emoji}</span><b>{label}</b></button>)}
+      </div>
+      <div className="wallet-strip">
+        <button><small>GrabPay</small><b>S$24.50</b></button>
+        <button><small>GrabRewards</small><b>1,280 pts</b></button>
+        <button><small>PayLater</small><b>Activate</b></button>
       </div>
       <section className="blind-card" onClick={start}>
         <div className="blind-copy"><div className="eyebrow light"><Icon name="sparkle" size={14} /> {saved ? "WELCOME BACK" : "NEW FOR LUNCH"}</div><h1>GRAB<br />BLIND BOX</h1><p>{saved ? <>Your preferences are saved.<br />One tap to lunch.</> : <>Too many choices?<br />Let us surprise you.</>}</p>
@@ -84,7 +101,7 @@ function Home({ go, saved, again }: { go: (s: Screen) => void; saved: boolean; a
         {meals.slice(0, 2).map(m => <div className="quick-card" key={m.id}><img src={m.image} alt={m.name} /><div><b>{m.restaurant}</b><span>{m.eta} · {m.distance} km</span></div></div>)}
       </div>
     </main>
-    <nav className="bottom-nav">{[["home", "Home"], ["food", "Food"], ["orders", "Activity"], ["pay", "Payment"]].map(([i, l], x) => <button className={x === 0 ? "selected" : ""} key={l}><Icon name={i as IconName} /><span>{l}</span></button>)}</nav>
+    <nav className="bottom-nav">{[["home", "Home"], ["orders", "Activity"], ["pay", "Payment"], ["chat", "Messages"], ["user", "Account"]].map(([i, l], x) => <button className={x === 0 ? "selected" : ""} key={l}><Icon name={i as IconName} /><span>{l}</span></button>)}</nav>
   </div>;
 }
 
@@ -152,7 +169,7 @@ function Preferences({ onBack, open, reset, group, setGroup, selectedAllergies, 
       </section>
       <RangeField title="How far are you willing to order?" value={radius} min={1} max={15} step={0.5} suffix=" km" onChange={setRadius} />
       <BudgetField budget={budget} setBudget={setBudget} />
-      <section className="setting-section"><h3>Anything you're in the mood for?</h3><p>Optional — choose as many as you like.</p><div className="chips cuisine-chips">{cuisines.map(c => <Chip key={c} label={c} active={selectedCuisines.includes(c)} onClick={() => toggle(c, selectedCuisines, setSelectedCuisines)} />)}</div>
+      <section className="setting-section"><h3>Anything you're in the mood for?</h3><p>Optional. Pick from more than one row to narrow it down, e.g. Rice + Korean for Korean rice dishes.</p>{cuisineGroups.map(g => <div className="cuisine-group" key={g.title}><h4>{g.title}</h4><div className="chips cuisine-chips">{g.options.map(c => <Chip key={c} label={c} active={selectedCuisines.includes(c)} onClick={() => toggle(c, selectedCuisines, setSelectedCuisines)} />)}</div></div>)}
         <button className={`anything ${selectedCuisines.length === 0 ? "active" : ""}`} onClick={() => setSelectedCuisines([])}><Icon name="sparkle" size={18} /> Surprise me with anything</button>
       </section>
       <button className="group-toggle" onClick={() => setGroup(!group)}><span className="group-icon"><Icon name="users" /></span><span><b>Deciding for a group?</b><small>Combine everyone's needs</small></span><span className={`toggle ${group ? "on" : ""}`}><i /></span></button>
@@ -235,15 +252,29 @@ function GroupSetup({ onBack, find, participants, setParticipants }: { onBack: (
   </div>;
 }
 
-function OrderReview({ meal, group, participants, onBack, home }: { meal: Meal; group: boolean; participants: Participant[]; onBack: () => void; home: () => void }) {
+const quickNotes = ["No spring onions", "Less spicy", "Sauce on the side"];
+
+function OrderReview({ meal, group, participants, allergyNotes, onBack, home }: { meal: Meal; group: boolean; participants: Participant[]; allergyNotes: string[]; onBack: () => void; home: () => void }) {
   const qty = group ? Math.max(participants.length, 1) : 1;
   const subtotal = meal.price * qty;
   const total = subtotal + meal.fee;
   const [placed, setPlaced] = useState(false);
-  if (placed) return <div className="screen success-screen"><div className="success-check">✓</div><div className="eyebrow">ORDER CONFIRMED</div><h1>Lunch is on the way.</h1><p>{meal.restaurant} is preparing your order.<br />Estimated arrival in {meal.eta}.</p><div className="order-number">ORDER GF-2841</div><button className="primary-button" onClick={home}>BACK TO HOME</button></div>;
+  const [note, setNote] = useState("");
+  const [shareAllergies, setShareAllergies] = useState(true);
+  const addQuick = (q: string) => setNote(n => n.includes(q) ? n : (n.trim() ? `${n.trim()}, ${q}` : q).slice(0, 150));
+  const sentAllergies = shareAllergies && allergyNotes.length > 0;
+  if (placed) return <div className="screen success-screen"><div className="success-check">✓</div><div className="eyebrow">ORDER CONFIRMED</div><h1>Lunch is on the way.</h1><p>{meal.restaurant} is preparing your order.<br />Estimated arrival in {meal.eta}.</p><div className="order-number">ORDER GF-2841</div>
+    {(sentAllergies || note.trim()) && <div className="sent-note"><b><Icon name="shield" size={16} /> Note sent to {meal.restaurant}</b>{sentAllergies && <p><span>Allergies</span>{allergyNotes.join(" · ")}</p>}{note.trim() && <p><span>Request</span>{note.trim()}</p>}<small>Shown to the kitchen with your order.</small></div>}
+    <button className="primary-button" onClick={home}>BACK TO HOME</button></div>;
   return <div className="screen scroll-screen">
     <TopBar title="Review order" onBack={onBack} />
     <main className="page order-page">
+      <section className="note-card">
+        <div className="order-section-title"><h3>Note to restaurant</h3><span>{note.length}/150</span></div>
+        {allergyNotes.length > 0 && <label className={`allergy-share ${shareAllergies ? "" : "off"}`}><input type="checkbox" checked={shareAllergies} onChange={e => setShareAllergies(e.target.checked)} /><span><b>Tell the restaurant about {group ? "our" : "my"} allergies</b><small>{shareAllergies ? allergyNotes.join(" · ") : "The restaurant won't be told about your allergies."}</small></span></label>}
+        <textarea maxLength={150} rows={2} placeholder="Any requests? e.g. no spring onions, sauce on the side" value={note} onChange={e => setNote(e.target.value)} />
+        <div className="chips">{quickNotes.map(q => <button className="chip" key={q} onClick={() => addQuick(q)}>+ {q}</button>)}</div>
+      </section>
       <div className="eta-card"><span><Icon name="clock" /></span><div><small>ESTIMATED ARRIVAL</small><h2>{meal.eta}</h2><p>From {meal.restaurant}</p></div></div>
       <section className="delivery-card"><div className="order-section-title"><h3>Delivery details</h3><button>Edit</button></div><div className="address-row"><Icon name="pin" /><div><b>One Raffles Place</b><p>1 Raffles Place, Lobby pickup<br />Meet at main entrance</p></div></div></section>
       <section className="delivery-card"><div className="order-section-title"><h3>Your order</h3><span>{qty} {qty > 1 ? "meals" : "meal"}</span></div><div className="cart-item"><img src={meal.image} alt="" /><span className="quantity">{qty}×</span><div><b>{meal.name}</b><p>{meal.restaurant}</p>{group && <small>For {participants.map(p => p.name).join(", ")}</small>}</div><strong>S${subtotal.toFixed(2)}</strong></div></section>
@@ -299,6 +330,9 @@ export default function App() {
   const currentPool = group ? groupEligible : eligible;
   const currentMeal = currentPool[mealIndex % currentPool.length] || meals[3];
   const groupRestrictions = Array.from(new Set(participants.flatMap(p => p.allergies)));
+  const allergyNotes = group
+    ? participants.filter(p => p.allergies.length).map(p => `${p.name}: ${p.allergies.join(", ")}`)
+    : [...selectedAllergies, other.trim()].filter(Boolean);
   const prefsScreen: Screen = saved ? "summary" : "preferences";
   const lowest = participants.reduce((a, b) => b.budget < a.budget ? b : a, participants[0]);
   const cuisineMatch = selectedCuisines.filter(c => currentMeal.tags.includes(c));
@@ -326,6 +360,6 @@ export default function App() {
     {screen === "result" && (eligible.length ? <Result meal={currentMeal} restrictions={selectedAllergies} onBack={() => setScreen(prefsScreen)} onEdit={() => setScreen("preferences")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} cuisineMatch={cuisineMatch} /> : <NoMatch group={false} onBack={() => setScreen("preferences")} />)}
     {screen === "group" && <GroupSetup onBack={() => setScreen(prefsScreen)} find={() => { setMealIndex(0); setScreen("reveal"); }} participants={participants} setParticipants={setParticipants} />}
     {screen === "groupResult" && (groupEligible.length ? <Result group meal={currentMeal} restrictions={groupRestrictions} participants={participants} onBack={() => setScreen("group")} onEdit={() => setScreen("group")} another={() => { setMealIndex(x => x + 1); setWhy(false); }} order={() => setScreen("order")} why={why} setWhy={setWhy} whyText={whyText} cuisineMatch={cuisineMatch} /> : <NoMatch group onBack={() => setScreen("group")} />)}
-    {screen === "order" && <OrderReview meal={currentMeal} group={group} participants={participants} onBack={() => setScreen(group ? "groupResult" : "result")} home={goHome} />}
+    {screen === "order" && <OrderReview meal={currentMeal} group={group} participants={participants} allergyNotes={allergyNotes} onBack={() => setScreen(group ? "groupResult" : "result")} home={goHome} />}
   </div></div>;
 }
